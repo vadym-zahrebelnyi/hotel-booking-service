@@ -14,6 +14,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from guest.models import Guest
+
 load_dotenv()
 # Build paths inside the project like this: BASE_DIR / "subdir".
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -67,6 +69,7 @@ TEMPLATES = [
         },
     },
 ]
+AUTH_USER_MODEL = "guest.Guest"
 
 WSGI_APPLICATION = "hotel_booking_service.wsgi.application"
 
