@@ -2,6 +2,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiParameter,
+    OpenApiTypes,
+)
 from booking.filters import BookingFilter
 from booking.models import Booking
 from booking.serializers import (
@@ -40,3 +45,59 @@ class BookingViewSet(viewsets.ModelViewSet):
             response_serializer.data,
             status=status.HTTP_201_CREATED
         )
+
+    @extend_schema(
+        summary="List bookings",
+        description=(
+                "Retrieve a list of bookings.\n\n"
+                "- Regular users see only their own bookings.\n"
+                "- Staff users see all bookings.\n"
+                "- Supports filtering by user, room, status, date range and room type."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="user",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description="Filter by user ID (staff only)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="room",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description="Filter by room ID",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="status",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Booking status (Booked, Active, Completed, Cancelled, No show)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="from_date",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Filter bookings with check-in date from this date",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="to_date",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Filter bookings with check-out date to this date",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="room_type",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by room type (SINGLE, DOUBLE, SUITE)",
+                required=False,
+            ),
+        ],
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
