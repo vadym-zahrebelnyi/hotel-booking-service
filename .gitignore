@@ -381,4 +381,11 @@ pyrightconfig.json
 
 *.rdb
 
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Editor-specific files
+.vscode/
+
 # End of https://www.toptal.com/developers/gitignore/api/python,django,redis,pycharm
