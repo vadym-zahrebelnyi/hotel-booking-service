@@ -23,9 +23,9 @@ class Booking(models.Model):
     price_per_night = models.DecimalField(max_digits=10, decimal_places=2)
 
     class Meta:
-        constraints = {
+        constraints = [
             models.CheckConstraint(
                 check=Q(check_out_date__gt=F("check_in_date")),
                 name = "check_out_after_check_in",
             ),
-        }
+        ]
