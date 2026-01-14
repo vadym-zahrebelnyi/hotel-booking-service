@@ -9,4 +9,4 @@ class Room(models.Model):
     number = models.CharField(max_length=255, unique=True)
     type = models.CharField(choices=RoomType.choices, max_length=20)
     price_per_night = models.DecimalField(max_digits=10, decimal_places=2)
-    capacity = models.PositiveIntegerField
+    capacity = models.PositiveIntegerField()
