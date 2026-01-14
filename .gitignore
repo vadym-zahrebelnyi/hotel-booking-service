@@ -387,5 +387,6 @@ Thumbs.db
 
 # Editor-specific files
 .vscode/
+.idea/
 
 # End of https://www.toptal.com/developers/gitignore/api/python,django,redis,pycharm
