@@ -107,3 +107,18 @@ class BookingViewSet(viewsets.ModelViewSet):
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
+
+    @action(detail=True, methods=["post"], url_path="check-in")
+    def check_in(self, request, pk=None):
+        booking = self.get_object()
+
+        if booking.status != Booking.BookingStatus.BOOKED:
+            return Response(
+                {"detail": "Only BOOKED bookings can be checked in."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        booking.status = Booking.BookingStatus.ACTIVE
+        booking.save(update_fields=["status"])
+
+        return Response(BookingReadSerializer(booking).data, status=status.HTTP_200_OK)
