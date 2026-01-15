@@ -23,7 +23,7 @@ class BookingViewSetTest(APITestCase):
         self.room = Room.objects.create(
             number="101",
             type="DOUBLE",
-            price=100,
+            price_per_night=100,
             capacity=2
         )
 
@@ -36,7 +36,7 @@ class BookingViewSetTest(APITestCase):
             status=Booking.BookingStatus.BOOKED,
         )
 
-        self.list_url = "/api/bookings/"
+        self.list_url = "/api/booking/"
 
     def test_authentication_required(self):
         response = self.client.get(self.list_url)
@@ -57,7 +57,10 @@ class BookingViewSetTest(APITestCase):
         response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(
+            Booking.objects.count(),
+            len(response.data),
+        )
 
     def test_filter_by_status(self):
         self.client.force_authenticate(user=self.admin)
@@ -108,3 +111,17 @@ class BookingViewSetTest(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Room is not available", str(response.data))
+
+    def test_create_booking_in_past_fails(self):
+        self.client.force_authenticate(user=self.user)
+
+        payload = {
+            "room": self.room.id,
+            "check_in_date": str(date.today() - timedelta(days=1)),
+            "check_out_date": str(date.today() + timedelta(days=1)),
+        }
+
+        response = self.client.post(self.list_url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("check_in_date", response.data)

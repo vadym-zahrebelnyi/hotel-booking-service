@@ -16,7 +16,7 @@ class BookingCreateSerializerTest(TestCase):
         self.room = Room.objects.create(
             number="101",
             type="DOUBLE",
-            price=100,
+            price_per_night=100,
             capacity=2
         )
 
