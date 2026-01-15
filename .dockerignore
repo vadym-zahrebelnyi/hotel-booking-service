@@ -10,6 +10,7 @@ env/
 .DS_Store
 Thumbs.db
 .env
+.python-version
 __pycache__/
 *.pyc
 *.pyo
@@ -25,3 +26,6 @@ celerybeat.pid
 .dockerignore
 Dockerfile
 docker-compose.yaml
+README.md
+.env.sample
+
