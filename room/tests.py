@@ -1,9 +1,12 @@
+from datetime import date, timedelta
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
+from booking.models import Booking
 from room.models import Room
 
 
@@ -14,6 +17,8 @@ def rooms_url():
 def room_detail_url(room_id: int) -> str:
     return reverse("room:rooms-detail", args=[room_id])
 
+def room_calendar_url(room_id:int) -> str:
+    return reverse("room:rooms-get-calendar", args=[room_id])
 
 def create_user(**params):
     defaults = {
@@ -57,7 +62,7 @@ class PublicRoomApiTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 2)
 
-    def test_create_room_forbidden_for_anon(self):
+    def test_create_room_unauthorized_for_anon(self):
         payload = {
             "number": "777",
             "type": Room.RoomType.SINGLE,
@@ -67,7 +72,7 @@ class PublicRoomApiTests(APITestCase):
 
         res = self.client.post(rooms_url(), payload)
 
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class PrivateRoomApiTests(APITestCase):
@@ -180,3 +185,113 @@ class AdminRoomApiTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]["number"], "1102")
+
+class RoomCalendarApiTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_user(email="user@test.com", password="test12345")
+        self.client.force_authenticate(self.user)
+        self.room = create_room(number="500")
+        self.url = room_calendar_url(room_id=self.room.id)
+
+    def test_get_calendar_success(self):
+        check_in = date.today() + timedelta(days=2)
+        check_out = check_in + timedelta(days=2)
+
+        Booking.objects.create(
+            room=self.room,
+            user=self.user,
+            status=Booking.BookingStatus.BOOKED,
+            price_per_night=50,
+            check_in_date=check_in,
+            check_out_date=check_out,
+        )
+        date_from = date.today()
+        date_to = date.today() + timedelta(days=4)
+
+        res = self.client.get(self.url, {"date_from": date_from, "date_to": date_to})
+
+        self.assertEqual(res.status_code, 200)
+        for day_data in res.data:
+            day = date.fromisoformat(day_data["date"])
+            if check_in <= day < check_out:
+                self.assertFalse(day_data["available"])
+            else:
+                self.assertTrue(day_data["available"])
+
+    def test_calendar_missing_dates_returns_400(self):
+        res = self.client.get(self.url, {"date_from": date.today()})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("detail", res.data)
+
+        res = self.client.get(self.url, {"date_to": date.today()})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("detail", res.data)
+
+    def test_calendar_invalid_date_range_returns_400(self):
+        date_from = date.today()
+        date_to = date.today() - timedelta(days=1)
+        res = self.client.get(self.url, {"date_from": date_from, "date_to": date_to})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("detail", res.data)
+
+class PublicRoomCalendarApiTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.room = create_room(number="600")
+        self.url = room_calendar_url(room_id=self.room.id)
+
+    def test_get_calendar_success_for_anonymous(self):
+        date_from = date.today()
+        date_to = date.today() + timedelta(days=2)
+
+        res = self.client.get(self.url, {"date_from": date_from, "date_to": date_to})
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 3)
+
+        for day_data in res.data:
+            self.assertIn("date", day_data)
+            self.assertIn("available", day_data)
+
+    def test_get_calendar_with_bookings_for_anonymous(self):
+        check_in = date.today() + timedelta(days=1)
+        check_out = check_in + timedelta(days=2)
+
+        Booking.objects.create(
+            room=self.room,
+            user=create_user(email="anon@test.com"),
+            status=Booking.BookingStatus.ACTIVE,
+            price_per_night=50,
+            check_in_date=check_in,
+            check_out_date=check_out,
+        )
+
+        date_from = date.today()
+        date_to = date.today() + timedelta(days=3)
+
+        res = self.client.get(self.url, {"date_from": date_from, "date_to": date_to})
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        for day_data in res.data:
+            day = date.fromisoformat(day_data["date"])
+            if check_in <= day < check_out:
+                self.assertFalse(day_data["available"])
+            else:
+                self.assertTrue(day_data["available"])
+
+    def test_calendar_missing_dates_returns_400_for_anonymous(self):
+        res = self.client.get(self.url, {"date_from": date.today()})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        res = self.client.get(self.url, {"date_to": date.today()})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_calendar_invalid_date_range_returns_400_for_anonymous(self):
+        date_from = date.today()
+        date_to = date.today() - timedelta(days=1)
+
+        res = self.client.get(self.url, {"date_from": date_from, "date_to": date_to})
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
