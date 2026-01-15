@@ -3,9 +3,9 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-CREATE_USER_URL = reverse("guest:create")
+CREATE_USER_URL = reverse("guest:register")
 ME_URL = reverse("guest:manage")
-LOGIN_URL = reverse("guest:token_obtain_pair")
+LOGIN_URL = reverse("guest:login")
 
 def create_user(**params):
     return get_user_model().objects.create_user(**params)
