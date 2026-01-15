@@ -6,7 +6,7 @@ authors = [
     {name = "vadym-zahrebelnyi",email = "zahrebelnyivadym@gmail.com"}
 ]
 readme = "README.md"
-requires-python = "~3.12.8"
+requires-python = ">=3.12.8"
 dependencies = [
     "django (>=5.1,<6.0)",
     "djangorestframework (>=3.16.1,<4.0.0)",
@@ -30,3 +30,54 @@ dependencies = [
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+exclude = [
+    "migrations",
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "DJ",   # flake8-django
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "ARG",  # flake8-unused-arguments
+    "SIM",  # flake8-simplify
+    "RUF",  # Ruff-specific rules
+    "T20",  # flake8-print
+]
+
+ignore = [
+    "E501",
+    "D",
+    "RUF012",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["hotel_booking_service"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"settings.py" = ["E402", "F403", "F405"]
+"**/tests/*" = ["S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
