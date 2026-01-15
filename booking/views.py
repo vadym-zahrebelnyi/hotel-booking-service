@@ -7,6 +7,8 @@ from drf_spectacular.utils import (
     OpenApiParameter,
     OpenApiTypes,
 )
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
 from booking.filters import BookingFilter
 from booking.models import Booking
 from booking.serializers import (
@@ -17,6 +19,7 @@ from booking.serializers import (
 
 class BookingViewSet(viewsets.ModelViewSet):
     serializer_class = BookingReadSerializer
+    authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_class = BookingFilter

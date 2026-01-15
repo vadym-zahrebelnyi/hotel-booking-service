@@ -87,7 +87,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
 
         return Booking.objects.create(
             user=user,
-            price_per_night=room.price,
+            price_per_night=room.price_per_night,
             status=Booking.BookingStatus.BOOKED,
             **validated_data,
         )
