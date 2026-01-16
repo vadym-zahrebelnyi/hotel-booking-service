@@ -85,8 +85,9 @@ jobs:
 
       - name: Install Poetry & Dependencies
         uses: snok/install-poetry@v1
-        with:
-          install-args: "--no-root"
+
+      - name: Install dependencies
+        run: poetry install --no-root
 
       - name: Wait for Services
         run: |
