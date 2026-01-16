@@ -16,10 +16,14 @@ class Payment(models.Model):
         NO_SHOW_FEE = "No show fee"
         OVERSTAY_FEE = "Overstay fee"
 
-    status = models.CharField(choices=PaymentStatus, max_length=20)
+    status = models.CharField(
+        choices=PaymentStatus,
+        max_length=20,
+        default=PaymentStatus.PENDING
+    )
     type = models.CharField(choices=PaymentType, max_length=20)
     booking = ForeignKey(Booking, related_name="payments",
                          on_delete=models.CASCADE)
-    session_url = models.URLField()
+    session_url = models.URLField(max_length=500)
     session_id = models.CharField(max_length=255)
     money_to_pay = models.DecimalField(max_digits=10, decimal_places=2)
