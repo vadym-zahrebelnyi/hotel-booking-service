@@ -38,7 +38,7 @@ services:
   celery:
     build:
       context: .
-    command: celery -A hotel_booking_service worker --loglevel=info
+    command: python -m celery -A hotel_booking_service worker --loglevel=info
     env_file:
       - .env
     depends_on:
@@ -55,9 +55,7 @@ services:
     build:
       context: .
     command: >
-      celery -A hotel_booking_service
-      beat -l info
-      --scheduler django_celery_beat.schedulers:DatabaseScheduler
+     python -m celery -A hotel_booking_service beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     env_file:
       - .env
     depends_on:
@@ -73,8 +71,8 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
+#    volumes:
+#      - redis_data:/data
     restart: always
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
