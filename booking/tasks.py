@@ -1,6 +1,7 @@
 from celery import shared_task
 from django.utils.timezone import localdate
 from booking.models import Booking
+from notifications.tasks import send_telegram_notification
 
 
 @shared_task
@@ -28,7 +29,7 @@ def mark_no_show_bookings():
 def notify_no_show_telegram(booking_id):
     """Send detailed notification to Telegram about NO_SHOW booking"""
     booking = Booking.objects.select_related('room', 'user').get(id=booking_id)
-    return (
+    message =  (
             f"⚠️ NO SHOW ALERT ⚠️\n"
             f"\n"
             f"📋 Booking ID: {booking.id}\n"
@@ -42,3 +43,4 @@ def notify_no_show_telegram(booking_id):
             f"\n"
             f"⏰ Marked at: {localdate()}"
         )
+    send_telegram_notification.delay(message)

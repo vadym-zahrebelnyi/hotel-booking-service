@@ -49,21 +49,21 @@ class BookingViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
 
-        payment = create_booking_payment(booking)
-
-        if payment:
-            success_url = request.build_absolute_uri(
-                reverse("payments:success")
-            )
-            cancel_url = request.build_absolute_uri(
-                reverse("payments:cancel")
-            )
-
-            create_checkout_session(
-                payment=payment,
-                success_url=success_url,
-                cancel_url=cancel_url,
-            )
+        # payment = create_booking_payment(booking)
+        #
+        # if payment:
+        #     success_url = request.build_absolute_uri(
+        #         reverse("payments:success")
+        #     )
+        #     cancel_url = request.build_absolute_uri(
+        #         reverse("payments:cancel")
+        #     )
+        #
+        #     create_checkout_session(
+        #         payment=payment,
+        #         success_url=success_url,
+        #         cancel_url=cancel_url,
+        #     )
 
         response_serializer = BookingReadSerializer(booking)
         return Response(
