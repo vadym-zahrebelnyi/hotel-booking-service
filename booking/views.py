@@ -1,22 +1,21 @@
-from datetime import datetime, time, timedelta
-
 from django.urls import reverse
+from datetime import datetime, time, timedelta
 from django.utils import timezone
+from rest_framework.decorators import action
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import viewsets, status
+from rest_framework.response import Response
 from drf_spectacular.utils import (
+    extend_schema,
     OpenApiParameter,
     OpenApiTypes,
-    extend_schema,
 )
-from rest_framework import status, viewsets
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from booking.filters import BookingFilter
 from booking.models import Booking
-from booking.serializers import BookingCreateSerializer, BookingReadSerializer
+from booking.serializers import BookingReadSerializer, BookingCreateSerializer
 from payment.services.payment_service import create_booking_payment
 from payment.services.stripe_service import create_checkout_session
 
@@ -47,7 +46,6 @@ class BookingViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
 
-<<<<<<< HEAD
         # payment = create_booking_payment(booking)
         #
         # if payment:
@@ -63,19 +61,6 @@ class BookingViewSet(viewsets.ModelViewSet):
         #         success_url=success_url,
         #         cancel_url=cancel_url,
         #     )
-=======
-        payment = create_booking_payment(booking)
-
-        if payment:
-            success_url = request.build_absolute_uri(reverse("payments:success"))
-            cancel_url = request.build_absolute_uri(reverse("payments:cancel"))
-
-            create_checkout_session(
-                payment=payment,
-                success_url=success_url,
-                cancel_url=cancel_url,
-            )
->>>>>>> ea915b1 (style: format and lint code)
 
         response_serializer = BookingReadSerializer(booking)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -183,6 +168,7 @@ class BookingViewSet(viewsets.ModelViewSet):
             )
 
         # hook: cancellation fee if <24h before check-in
+        # (поки Payment Service немає у нас — просто TODO)
         check_in_dt = timezone.make_aware(
             datetime.combine(booking.check_in_date, time.min)
         )

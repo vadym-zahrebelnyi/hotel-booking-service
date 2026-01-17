@@ -28,26 +28,8 @@ def mark_no_show_bookings():
 @shared_task
 def notify_no_show_telegram(booking_id):
     """Send detailed notification to Telegram about NO_SHOW booking"""
-<<<<<<< HEAD
-    booking = Booking.objects.select_related('room', 'user').get(id=booking_id)
-    message =  (
-            f"⚠️ NO SHOW ALERT ⚠️\n"
-            f"\n"
-            f"📋 Booking ID: {booking.id}\n"
-            f"🚪 Room: {booking.room.number} ({booking.room.type})\n"
-            f"👤 Guest: {booking.user.first_name} {booking.user.last_name}\n"
-            f"📧 Email: {booking.user.email}\n"
-            f"📅 Check-in Date: {booking.check_in_date}\n"
-            f"📅 Check-out Date: {booking.check_out_date}\n"
-            f"💰 Price per night: ${booking.price_per_night}\n"
-            f"📊 Status: {booking.status}\n"
-            f"\n"
-            f"⏰ Marked at: {localdate()}"
-        )
-    send_telegram_notification.delay(message)
-=======
     booking = Booking.objects.select_related("room", "user").get(id=booking_id)
-    return (
+    message = (
         f"⚠️ NO SHOW ALERT ⚠️\n"
         f"\n"
         f"📋 Booking ID: {booking.id}\n"
@@ -61,4 +43,4 @@ def notify_no_show_telegram(booking_id):
         f"\n"
         f"⏰ Marked at: {localdate()}"
     )
->>>>>>> ea915b1 (style: format and lint code)
+    send_telegram_notification.delay(message)
