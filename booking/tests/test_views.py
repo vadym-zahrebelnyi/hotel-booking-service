@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from rest_framework import status
@@ -74,8 +75,14 @@ class BookingViewSetTest(APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["user"], self.user.id)
 
-    def test_create_booking_success(self):
+    @patch("booking.views.create_checkout_session")
+    def test_create_booking_success(self, mock_create_checkout_session):
         self.client.force_authenticate(user=self.user)
+
+        mock_create_checkout_session.return_value = {
+            "id": "cs_test_123",
+            "url": "https://checkout.stripe.com/test",
+        }
 
         payload = {
             "room": self.room.id,
@@ -89,6 +96,8 @@ class BookingViewSetTest(APITestCase):
         self.assertEqual(response.data["user"], self.user.id)
         self.assertEqual(response.data["price_per_night"], "100.00")
         self.assertEqual(response.data["status"], Booking.BookingStatus.BOOKED)
+
+        mock_create_checkout_session.assert_called_once()
 
     def test_create_booking_overlap_fails(self):
         self.client.force_authenticate(user=self.user)
