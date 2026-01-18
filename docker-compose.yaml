@@ -17,8 +17,7 @@ services:
         condition: service_healthy
     volumes:
       - .:/app
-      - media_data:/vol/web/media
-      - static_data:/vol/web/static
+
 
   db:
     image: postgres:16-alpine
@@ -48,14 +47,15 @@ services:
         condition: service_healthy
     volumes:
       - .:/app
-      - media_data:/vol/web/media
     restart: unless-stopped
 
   celery-beat:
     build:
       context: .
     command: >
-     python -m celery -A hotel_booking_service beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+      sh -c "python manage.py migrate django_celery_beat &&
+             python -m celery -A hotel_booking_service beat -l info
+             --scheduler django_celery_beat.schedulers:DatabaseScheduler"
     env_file:
       - .env
     depends_on:
@@ -66,13 +66,10 @@ services:
     volumes:
       - .:/app
     restart: unless-stopped
-
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-#    volumes:
-#      - redis_data:/data
     restart: always
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
@@ -93,6 +90,3 @@ services:
 
 volumes:
   db_data:
-  media_data:
-  static_data:
-#  redis_data:

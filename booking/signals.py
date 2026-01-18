@@ -27,7 +27,7 @@ def booking_notification(sender, instance, created, **kwargs):
         send_telegram_notification.delay(message)
 
     else:
-        if instance.status == "Cancelled":
+        if instance.status == "CANCELLED":
             message = (
                 "❌ Booking Canceled\n"
                 f"User: {instance.user.email}\n"
@@ -36,7 +36,7 @@ def booking_notification(sender, instance, created, **kwargs):
             )
             send_telegram_notification.delay(message)
 
-        elif instance.status == "No show":
+        elif instance.status == "NO_SHOW":
             message = (
                 "⚠️ Guest No-show\n"
                 f"User: {instance.user.email}\n"
@@ -48,13 +48,6 @@ def booking_notification(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=Booking)
 def booking_payment_signal(sender, instance: Booking, created, **kwargs):
-    """
-    Handles creation of Stripe payments on booking events:
-    - BOOKED -> BOOKING payment
-    - COMPLETED -> booking payment + OVERSTAY_FEE if late checkout
-    - NO_SHOW -> NO_SHOW_FEE payment
-    - CANCELLED -> CANCELLATION_FEE if less than 24h to check-in
-    """
     if created and instance.status == Booking.BookingStatus.BOOKED:
         transaction.on_commit(
             lambda: create_stripe_payment_task.delay(
@@ -112,7 +105,7 @@ def booking_payment_signal(sender, instance: Booking, created, **kwargs):
         hours_to_checkin = (
             instance.check_in_date - timezone.now().date()
         ).total_seconds() / 3600
-        if not has_cancel_fee and hours_to_checkin < 24:
+        if not has_cancel_fee and hours_to_checkin <= 24:
             transaction.on_commit(
                 lambda: create_stripe_payment_task.delay(
                     instance.id, Payment.PaymentType.CANCELLATION_FEE
