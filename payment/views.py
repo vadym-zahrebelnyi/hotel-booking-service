@@ -1,8 +1,10 @@
 import stripe
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import generics, status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,6 +12,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from payment.models import Payment
 from payment.serializers import PaymentSerializer
+from payment.services.payment_service import renew_payment_session
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -73,3 +76,28 @@ class PaymentCancelView(APIView):
 
     def get(self, request):
         return Response({"detail": "Payment cancelled"})
+
+
+class PaymentRenewView(APIView):
+    authentication_classes = (JWTAuthentication,)
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            payment = Payment.objects.get(pk=pk)
+        except Payment.DoesNotExist:
+            return Response(
+                {"detail": "Payment not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            payment = renew_payment_session(payment)
+        except ValidationError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = PaymentSerializer(payment)
+        return Response(serializer.data, status=status.HTTP_200_OK)
