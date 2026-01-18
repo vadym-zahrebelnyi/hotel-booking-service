@@ -1,6 +1,5 @@
-from decimal import Decimal
-
 import stripe
+from decimal import Decimal
 from django.conf import settings
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
