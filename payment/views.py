@@ -1,5 +1,6 @@
 import stripe
 from django.conf import settings
+from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -42,7 +43,8 @@ class StripeWebhook(APIView):
         except stripe.error.SignatureVerificationError:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": str(e)},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         if event["type"] != "checkout.session.completed":
             return Response(status=status.HTTP_200_OK)
@@ -60,8 +62,17 @@ class StripeWebhook(APIView):
             payment.save(update_fields=["status"])
 
         booking = payment.booking
-        booking.status = Booking.BookingStatus.ACTIVE
-        booking.save(update_fields=["status"])
+        if payment.type == Payment.PaymentType.CANCELLATION_FEE:
+            booking.status = Booking.BookingStatus.CANCELLED
+            booking.save(update_fields=["status"])
+        if booking.status in (Booking.BookingStatus.BOOKED, Booking.BookingStatus.NO_SHOW):
+            booking.status = Booking.BookingStatus.ACTIVE
+            booking.save(update_fields=["status"])
+        elif booking.status == Booking.BookingStatus.ACTIVE:
+            booking.status = Booking.BookingStatus.COMPLETED
+            today = timezone.localdate()
+            booking.actual_check_out_date = today
+            booking.save(update_fields=["status", "actual_check_out_date"])
 
         return Response(status=status.HTTP_200_OK)
 

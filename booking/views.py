@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.db import transaction
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -117,11 +119,11 @@ class BookingViewSet(viewsets.ModelViewSet):
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
-
+    @extend_schema(request=None)
     @action(detail=True, methods=["post"], url_path="check-in")
     def check_in(self, request, pk=None):
         booking = self.get_object()
-        today = timezone.localdate()
+        today = datetime()
 
         if booking.status not in (
                 Booking.BookingStatus.BOOKED,
@@ -188,35 +190,36 @@ class BookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        hours_to_checkin = (
-                                       booking.check_in_date - today).total_seconds() / 3600
-
+        hours_to_checkin = (booking.check_in_date - today).total_seconds() / 3600
         with transaction.atomic():
-            booking.status = Booking.BookingStatus.CANCELLED
-            booking.save(update_fields=["status"])
-
-            if (
-                    hours_to_checkin <= 24
-                    and not booking.payments.filter(
-                type=Payment.PaymentType.CANCELLATION_FEE
-            ).exists()
-            ):
-                transaction.on_commit(
-                    lambda: create_stripe_payment_task.delay(
-                        booking.id,
-                        Payment.PaymentType.CANCELLATION_FEE,
-                    )
+            if hours_to_checkin > 24:
+                booking.status = Booking.BookingStatus.CANCELLED
+                booking.save(update_fields=["status"])
+            else:
+                payment, created = Payment.objects.get_or_create(
+                    booking=booking,
+                    type=Payment.PaymentType.CANCELLATION_FEE,
+                    status=Payment.PaymentStatus.PENDING,
+                    money_to_pay=calculate_payment_amount(booking, Payment.PaymentType.CANCELLATION_FEE)
                 )
 
-        return Response(
-            BookingReadSerializer(booking).data,
-            status=status.HTTP_200_OK,
-        )
+                if not payment.session_id:
+                    session = create_checkout_session(
+                        amount=payment.money_to_pay,
+                        name=f"Cancellation Fee for Booking #{booking.id}",
+                    )
+                    payment.session_id = session["id"]
+                    payment.session_url = session["url"]
+                    payment.save(update_fields=["session_id", "session_url"])
+
+            return Response(
+                BookingReadSerializer(booking).data,
+                status=status.HTTP_200_OK,
+            )
 
     @action(detail=True, methods=["post"], url_path="check-out")
     def check_out(self, request, pk=None):
         booking = self.get_object()
-        today = timezone.localdate()
 
         if booking.status != Booking.BookingStatus.ACTIVE:
             return Response(
@@ -225,29 +228,27 @@ class BookingViewSet(viewsets.ModelViewSet):
             )
 
         with transaction.atomic():
-            booking.status = Booking.BookingStatus.COMPLETED
-            booking.actual_check_out_date = today
-            booking.save(update_fields=["status", "actual_check_out_date"])
-
-            if not booking.payments.filter(
-                    type=Payment.PaymentType.BOOKING,
-                    status=Payment.PaymentStatus.PENDING
-            ).exists():
-                transaction.on_commit(
-                    lambda: create_stripe_payment_task.delay(booking.id,
-                                                             Payment.PaymentType.BOOKING)
+            today = timezone.localdate()
+            if today > booking.check_out_date:
+                payment, created = Payment.objects.get_or_create(
+                    booking=booking,
+                    type=Payment.PaymentType.OVERSTAY_FEE,
+                    status=Payment.PaymentStatus.PENDING,
+                    money_to_pay=calculate_payment_amount(booking,
+                                                          Payment.PaymentType.OVERSTAY_FEE)
                 )
-
-            if booking.actual_check_out_date > booking.check_out_date:
-                if not booking.payments.filter(
-                        type=Payment.PaymentType.OVERSTAY_FEE,
-                        status=Payment.PaymentStatus.PENDING
-                ).exists():
-                    transaction.on_commit(
-                        lambda: create_stripe_payment_task.delay(booking.id,
-                                                                 Payment.PaymentType.OVERSTAY_FEE)
-                    )
-
+                session = create_checkout_session(
+                    amount=payment.money_to_pay,
+                    name=f"Overstay fee for booking #{booking.id}",
+                )
+                payment.session_id = session["id"]
+                payment.session_url = session["url"]
+                payment.save(update_fields=["session_id", "session_url"])
+            else:
+                booking.status = Booking.BookingStatus.COMPLETED
+                today = timezone.localdate()
+                booking.actual_check_out_date = today
+                booking.save(update_fields=["status", "actual_check_out_date"])
         return Response(
             BookingReadSerializer(booking).data,
             status=status.HTTP_200_OK,
