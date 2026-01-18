@@ -26,7 +26,7 @@ def create_checkout_session(amount, name):
             }
         ],
         success_url=f"https://localhost:8000/api/payments/success/",
-        cancel_url = f"https://localhost:8000/api/payments/cancel/",
+        cancel_url=f"https://localhost:8000/api/payments/cancel/",
     )
 
     return session

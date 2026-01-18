@@ -30,7 +30,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
             "price_per_night",
             "total_nights",
             "total_price",
-            "payments"
+            "payments",
         )
 
     def get_total_nights(self, obj):
