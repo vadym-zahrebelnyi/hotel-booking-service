@@ -5,6 +5,9 @@ from django.core.exceptions import ValidationError
 from payment.models import Payment
 from payment.services.stripe_service import create_checkout_session
 
+from decimal import Decimal
+from django.utils import timezone
+
 
 def calculate_payment_amount(booking, event) -> Decimal | None:
     nights = (booking.check_out_date - booking.check_in_date).days
@@ -40,7 +43,6 @@ def create_booking_payment(booking, event):
     )
 
     return payment
-
 
 def renew_payment_session(payment: Payment) -> Payment:
     """

@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from booking.models import Booking
 from payment.models import Payment
 from payment.serializers import PaymentSerializer
 from payment.services.payment_service import renew_payment_session
@@ -57,6 +58,10 @@ class StripeWebhook(APIView):
         if payment.status != Payment.PaymentStatus.PAID:
             payment.status = Payment.PaymentStatus.PAID
             payment.save(update_fields=["status"])
+
+        booking = payment.booking
+        booking.status = Booking.BookingStatus.ACTIVE
+        booking.save(update_fields=["status"])
 
         return Response(status=status.HTTP_200_OK)
 

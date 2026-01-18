@@ -178,7 +178,7 @@ CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_BEAT_SCHEDULE = {
     "mark-no-show-bookings": {
         "task": "booking.tasks.mark_no_show_bookings",
-        "schedule": crontab(hour=0, minute=1),
+        "schedule": crontab(minute="*"),
     },
 }
 CELERY_ACCEPT_CONTENT = ["json"]

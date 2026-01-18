@@ -1,8 +1,12 @@
+from datetime import timedelta
+
 from celery import shared_task
+from django.utils import timezone
 from django.utils.timezone import localdate
 
 from booking.models import Booking
 from notifications.tasks import send_telegram_notification
+from payment.models import Payment
 
 
 @shared_task
@@ -44,3 +48,18 @@ def notify_no_show_telegram(booking_id):
         f"⏰ Marked at: {localdate()}"
     )
     send_telegram_notification.delay(message)
+
+@shared_task
+def expire_stripe_sessions():
+    expiration_threshold = timezone.now() - timedelta(hours=24)
+
+    expired_payments = Payment.objects.filter(
+        status=Payment.PaymentStatus.PENDING,
+        created_at__lte=expiration_threshold,
+    )
+
+    count = expired_payments.update(
+        status=Payment.PaymentStatus.EXPIRED
+    )
+
+    return f"Expired {count} payments older than 24 hours"

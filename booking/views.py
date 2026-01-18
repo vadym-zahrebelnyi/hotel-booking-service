@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import (
@@ -16,6 +17,9 @@ from booking.filters import BookingFilter
 from booking.models import Booking
 from booking.serializers import BookingCreateSerializer, BookingReadSerializer
 from payment.models import Payment
+from payment.services.payment_service import calculate_payment_amount
+from payment.services.stripe_service import create_checkout_session
+from payment.tasks import create_stripe_payment_task
 from payment.services.payment_service import renew_payment_session
 
 
@@ -55,15 +59,16 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking = serializer.save()
 
         response_serializer = BookingReadSerializer(booking)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        return Response(response_serializer.data,
+                        status=status.HTTP_201_CREATED)
 
     @extend_schema(
         summary="List bookings",
         description=(
-            "Retrieve a list of bookings.\n\n"
-            "- Regular users see only their own bookings.\n"
-            "- Staff users see all bookings.\n"
-            "- Supports filtering by user, room, status, date range and room type."
+                "Retrieve a list of bookings.\n\n"
+                "- Regular users see only their own bookings.\n"
+                "- Staff users see all bookings.\n"
+                "- Supports filtering by user, room, status, date range and room type."
         ),
         parameters=[
             OpenApiParameter(
@@ -118,9 +123,13 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking = self.get_object()
         today = timezone.localdate()
 
-        if booking.status != Booking.BookingStatus.BOOKED:
+        if booking.status not in (
+                Booking.BookingStatus.BOOKED,
+                Booking.BookingStatus.NO_SHOW,
+        ):
             return Response(
-                {"detail": "Only BOOKED bookings can be checked in."},
+                {
+                    "detail": "Check-in is allowed only for BOOKED or NO_SHOW bookings."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -135,11 +144,31 @@ class BookingViewSet(viewsets.ModelViewSet):
                 {"detail": "Check-in is not possible after check-out date."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        payment_type = (
+            Payment.PaymentType.NO_SHOW_FEE
+            if booking.status == Booking.BookingStatus.NO_SHOW
+            else Payment.PaymentType.BOOKING
+        )
 
-        booking.status = Booking.BookingStatus.ACTIVE
-        booking.save(update_fields=["status"])
+        payment, created = Payment.objects.get_or_create(
+            booking=booking,
+            type=payment_type,
+            status=Payment.PaymentStatus.PENDING,
+            money_to_pay=calculate_payment_amount(booking, payment_type)
+        )
 
-        return Response(BookingReadSerializer(booking).data, status=status.HTTP_200_OK)
+        if not payment.session_id:
+            session = create_checkout_session(
+                amount=payment.money_to_pay,
+                name=f"Booking #{booking.id}",
+            )
+            payment.session_id = session["id"]
+            payment.session_url = session["url"]
+            payment.save(update_fields=["session_id", "session_url"])
+
+        return Response(
+            BookingReadSerializer(booking).data, status=status.HTTP_200_OK
+        )
 
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
@@ -152,16 +181,37 @@ class BookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # only before check-in date
         if today >= booking.check_in_date:
             return Response(
-                {"detail": "Cancellation is allowed only before check-in date."},
+                {
+                    "detail": "Cancellation is allowed only before check-in date."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        booking.status = Booking.BookingStatus.CANCELLED
-        booking.save(update_fields=["status"])
 
-        return Response(BookingReadSerializer(booking).data, status=status.HTTP_200_OK)
+        hours_to_checkin = (
+                                       booking.check_in_date - today).total_seconds() / 3600
+
+        with transaction.atomic():
+            booking.status = Booking.BookingStatus.CANCELLED
+            booking.save(update_fields=["status"])
+
+            if (
+                    hours_to_checkin <= 24
+                    and not booking.payments.filter(
+                type=Payment.PaymentType.CANCELLATION_FEE
+            ).exists()
+            ):
+                transaction.on_commit(
+                    lambda: create_stripe_payment_task.delay(
+                        booking.id,
+                        Payment.PaymentType.CANCELLATION_FEE,
+                    )
+                )
+
+        return Response(
+            BookingReadSerializer(booking).data,
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["post"], url_path="check-out")
     def check_out(self, request, pk=None):
@@ -173,10 +223,64 @@ class BookingViewSet(viewsets.ModelViewSet):
                 {"detail": "Only ACTIVE bookings can be checked out."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        booking.status = Booking.BookingStatus.COMPLETED
-        booking.actual_check_out_date = today
-        booking.save(update_fields=["status", "actual_check_out_date"])
 
+        with transaction.atomic():
+            booking.status = Booking.BookingStatus.COMPLETED
+            booking.actual_check_out_date = today
+            booking.save(update_fields=["status", "actual_check_out_date"])
+
+            if not booking.payments.filter(
+                    type=Payment.PaymentType.BOOKING,
+                    status=Payment.PaymentStatus.PENDING
+            ).exists():
+                transaction.on_commit(
+                    lambda: create_stripe_payment_task.delay(booking.id,
+                                                             Payment.PaymentType.BOOKING)
+                )
+
+            if booking.actual_check_out_date > booking.check_out_date:
+                if not booking.payments.filter(
+                        type=Payment.PaymentType.OVERSTAY_FEE,
+                        status=Payment.PaymentStatus.PENDING
+                ).exists():
+                    transaction.on_commit(
+                        lambda: create_stripe_payment_task.delay(booking.id,
+                                                                 Payment.PaymentType.OVERSTAY_FEE)
+                    )
+
+        return Response(
+            BookingReadSerializer(booking).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"], url_path="no-show")
+    def no_show(self, request, pk=None):
+        booking = self.get_object()
+
+        if booking.status != Booking.BookingStatus.BOOKED:
+            return Response(
+                {"detail": "Only BOOKED bookings can be marked as NO_SHOW."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            booking.status = Booking.BookingStatus.NO_SHOW
+            booking.save(update_fields=["status"])
+
+            if not booking.payments.filter(
+                    type=Payment.PaymentType.NO_SHOW_FEE
+            ).exists():
+                transaction.on_commit(
+                    lambda: create_stripe_payment_task.delay(
+                        booking.id,
+                        Payment.PaymentType.NO_SHOW_FEE,
+                    )
+                )
+
+        return Response(
+            BookingReadSerializer(booking).data,
+            status=status.HTTP_200_OK,
+        )
         expired_payments = booking.payments.filter(status=Payment.PaymentStatus.EXPIRED)
 
         renewed_payments = []
