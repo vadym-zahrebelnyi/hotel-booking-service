@@ -7,11 +7,11 @@ from room.models import Room
 
 class Booking(models.Model):
     class BookingStatus(models.TextChoices):
-        BOOKED = "Booked"
-        ACTIVE = "Active"
-        COMPLETED = "Completed"
-        CANCELLED = "Cancelled"
-        NO_SHOW = "No show"
+        BOOKED = "BOOKED"
+        ACTIVE = "ACTIVE"
+        COMPLETED = "COMPLETED"
+        CANCELLED = "CANCELLED"
+        NO_SHOW = "NO_SHOW"
 
     room = ForeignKey(Room, on_delete=models.CASCADE, related_name="bookings")
     user = ForeignKey(
