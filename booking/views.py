@@ -148,16 +148,6 @@ class BookingViewSet(viewsets.ModelViewSet):
                 {"detail": "Cancellation is allowed only before check-in date."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        # hook: cancellation fee if <24h before check-in
-        # TODO: implement Payment Service
-        check_in_dt = timezone.make_aware(
-            datetime.combine(booking.check_in_date, time.min)
-        )
-        if timezone.now() >= check_in_dt - timedelta(hours=24):
-            # TODO: create CANCELLATION_FEE payment when Payment Service is implemented
-            pass
-
         booking.status = Booking.BookingStatus.CANCELLED
         booking.save(update_fields=["status"])
 
@@ -173,16 +163,8 @@ class BookingViewSet(viewsets.ModelViewSet):
                 {"detail": "Only ACTIVE bookings can be checked out."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
         booking.status = Booking.BookingStatus.COMPLETED
         booking.actual_check_out_date = today
         booking.save(update_fields=["status", "actual_check_out_date"])
-
-        # TODO: create main Payment when Payment Service is implemented
-
-        # late checkout hook
-        if today > booking.check_out_date:
-            # TODO: create OVERSTAY_FEE Payment when Payment Service is implemented
-            pass
 
         return Response(BookingReadSerializer(booking).data, status=status.HTTP_200_OK)
