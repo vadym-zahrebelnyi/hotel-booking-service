@@ -60,10 +60,10 @@ class BookingViewSetTest(APITestCase):
     def test_filter_by_status(self):
         self.client.force_authenticate(user=self.admin)
 
-        response = self.client.get(self.list_url, {"status": "Booked"})
+        response = self.client.get(self.list_url, {"status": "BOOKED"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(all(b["status"] == "Booked" for b in response.data))
+        self.assertTrue(all(b["status"] == "BOOKED" for b in response.data))
 
     def test_filter_by_user_id(self):
         self.client.force_authenticate(user=self.admin)
