@@ -1,5 +1,4 @@
 import logging
-from notifications.tasks import send_telegram_notification
 
 from django.db import transaction
 from django.db.models.signals import post_save
@@ -7,6 +6,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from booking.models import Booking
+from notifications.tasks import send_telegram_notification
 from payment.models import Payment
 from payment.tasks import create_stripe_payment_task
 

@@ -1,4 +1,5 @@
 from celery import shared_task
+
 from booking.models import Booking
 from payment.services.payment_service import create_booking_payment
 

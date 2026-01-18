@@ -1,5 +1,6 @@
-import stripe
 from decimal import Decimal
+
+import stripe
 from django.conf import settings
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -24,8 +25,8 @@ def create_checkout_session(amount, name):
                 "quantity": 1,
             }
         ],
-        success_url=f"https://localhost:8000/api/payments/success/",
-        cancel_url=f"https://localhost:8000/api/payments/cancel/",
+        success_url="https://localhost:8000/api/payments/success/",
+        cancel_url="https://localhost:8000/api/payments/cancel/",
     )
 
     return session
