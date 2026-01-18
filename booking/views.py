@@ -7,6 +7,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -14,6 +15,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from booking.filters import BookingFilter
 from booking.models import Booking
 from booking.serializers import BookingCreateSerializer, BookingReadSerializer
+from payment.models import Payment
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -38,6 +40,15 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """Create new booking with user auto-attachment and price from room."""
+        has_pending_payment = Payment.objects.filter(
+            booking__user=request.user,
+            status=Payment.PaymentStatus.PENDING,
+        ).exists()
+
+        if has_pending_payment:
+            raise ValidationError(
+                "You cannot create a new booking while you have a pending payment."
+            )
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
