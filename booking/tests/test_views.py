@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from booking.models import Booking
+from payment.models import Payment
 from room.models import Room
 
 
@@ -125,3 +126,41 @@ class BookingViewSetTest(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("check_in_date", response.data)
+
+    def test_create_booking_fails_if_user_has_pending_payment(self):
+        self.client.force_authenticate(user=self.user)
+        Payment.objects.create(
+            booking=self.user_booking,
+            status=Payment.PaymentStatus.PENDING,
+            money_to_pay=200,
+        )
+        payload = {
+            "room": self.room.id,
+            "check_in_date": str(date.today() + timedelta(days=10)),
+            "check_out_date": str(date.today() + timedelta(days=12)),
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "You cannot create a new booking while you have a pending payment.",
+            str(response.data),
+        )
+        self.assertEqual(Booking.objects.filter(user=self.user).count(), 1)
+
+
+    def test_create_booking_allowed_if_no_pending_payment(self):
+        self.client.force_authenticate(user=self.user)
+        Payment.objects.create(
+            booking=self.user_booking,
+            status=Payment.PaymentStatus.PAID,
+            money_to_pay=200,
+        )
+        payload = {
+            "room": self.room.id,
+            "check_in_date": str(date.today() + timedelta(days=10)),
+            "check_out_date": str(date.today() + timedelta(days=12)),
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Booking.objects.filter(user=self.user).count(), 2)
