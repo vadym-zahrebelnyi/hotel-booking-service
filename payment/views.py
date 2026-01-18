@@ -22,7 +22,6 @@ class PaymentListView(generics.ListAPIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-
 class StripeWebhook(APIView):
     authentication_classes = []
     permission_classes = []
