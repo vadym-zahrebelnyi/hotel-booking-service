@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
+
 from payment.models import Payment
 from payment.services.stripe_service import create_checkout_session
 
@@ -36,5 +38,25 @@ def create_booking_payment(booking, event):
         session_id=stripe_session.id,
         session_url=stripe_session.url,
     )
+
+    return payment
+
+
+def renew_payment_session(payment: Payment) -> Payment:
+    """
+    Renew Stripe session for expired payment.
+    """
+    if payment.status != Payment.PaymentStatus.EXPIRED:
+        raise ValidationError("Only EXPIRED payments can be renewed.")
+
+    stripe_session = create_checkout_session(
+        amount=payment.money_to_pay,
+        name=f"{payment.type} payment for Booking {payment.booking_id}",
+    )
+
+    payment.session_id = stripe_session.id
+    payment.session_url = stripe_session.url
+    payment.status = Payment.PaymentStatus.PENDING
+    payment.save(update_fields=["session_id", "session_url", "status"])
 
     return payment

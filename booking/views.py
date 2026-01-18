@@ -16,6 +16,7 @@ from booking.filters import BookingFilter
 from booking.models import Booking
 from booking.serializers import BookingCreateSerializer, BookingReadSerializer
 from payment.models import Payment
+from payment.services.payment_service import renew_payment_session
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -175,5 +176,24 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking.status = Booking.BookingStatus.COMPLETED
         booking.actual_check_out_date = today
         booking.save(update_fields=["status", "actual_check_out_date"])
+
+        expired_payments = booking.payments.filter(status=Payment.PaymentStatus.EXPIRED)
+
+        renewed_payments = []
+        for payment in expired_payments:
+            renewed_payment = renew_payment_session(payment)
+            renewed_payments.append(renewed_payment)
+
+        response_data = BookingReadSerializer(booking).data
+
+        if renewed_payments:
+            response_data["renewed_payments"] = [
+                {
+                    "id": payment.id,
+                    "session_url": payment.session_url,
+                    "status": payment.status,
+                }
+                for payment in renewed_payments
+            ]
 
         return Response(BookingReadSerializer(booking).data, status=status.HTTP_200_OK)
