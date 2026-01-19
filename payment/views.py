@@ -110,7 +110,6 @@ class PaymentCancelView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        session_id = request.query_params.get("session_id")
         return Response({
             "detail": "Payment was cancelled. You can complete it later."
         }, status=status.HTTP_200_OK)
