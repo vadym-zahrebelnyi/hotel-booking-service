@@ -84,7 +84,26 @@ class PaymentSuccessView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({"detail": "Payment successful!"})
+        session_id = request.query_params.get("session_id")
+        if not session_id:
+            return Response(
+                {"detail": "session_id is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        payment = Payment.objects.filter(session_id=session_id).first()
+        if not payment:
+            return Response(
+                {"detail": "Payment not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(
+            {
+                "detail": "Thank you for your payment! Your booking is being processed.",
+                "payment_status": payment.status,
+                "booking_id": payment.booking.id,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class PaymentCancelView(APIView):
@@ -92,7 +111,10 @@ class PaymentCancelView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({"detail": "Payment cancelled"})
+        return Response(
+            {"detail": "Payment was cancelled. You can complete it later."},
+            status=status.HTTP_200_OK,
+        )
 
 
 class PaymentRenewView(APIView):
