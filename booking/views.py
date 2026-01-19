@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from django.db import transaction
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -25,8 +23,6 @@ from payment.services.payment_service import (
 )
 from payment.services.stripe_service import create_checkout_session
 from payment.tasks import create_stripe_payment_task
-
-from payment.services.payment_service import renew_payment_session
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -127,7 +123,7 @@ class BookingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="check-in")
     def check_in(self, request, pk=None):
         booking = self.get_object()
-        today = datetime()
+        today = timezone.localdate()
 
         if booking.status not in (
             Booking.BookingStatus.BOOKED,
@@ -252,6 +248,25 @@ class BookingViewSet(viewsets.ModelViewSet):
                 today = timezone.localdate()
                 booking.actual_check_out_date = today
                 booking.save(update_fields=["status", "actual_check_out_date"])
+        expired_payments = booking.payments.filter(status=Payment.PaymentStatus.EXPIRED)
+
+        renewed_payments = []
+        for payment in expired_payments:
+            renewed_payment = renew_payment_session(payment)
+            renewed_payments.append(renewed_payment)
+
+        response_data = BookingReadSerializer(booking).data
+
+        if renewed_payments:
+            response_data["renewed_payments"] = [
+                {
+                    "id": payment.id,
+                    "session_url": payment.session_url,
+                    "status": payment.status,
+                }
+                for payment in renewed_payments
+            ]
+
         return Response(
             BookingReadSerializer(booking).data,
             status=status.HTTP_200_OK,
@@ -285,23 +300,3 @@ class BookingViewSet(viewsets.ModelViewSet):
             BookingReadSerializer(booking).data,
             status=status.HTTP_200_OK,
         )
-        expired_payments = booking.payments.filter(status=Payment.PaymentStatus.EXPIRED)
-
-        renewed_payments = []
-        for payment in expired_payments:
-            renewed_payment = renew_payment_session(payment)
-            renewed_payments.append(renewed_payment)
-
-        response_data = BookingReadSerializer(booking).data
-
-        if renewed_payments:
-            response_data["renewed_payments"] = [
-                {
-                    "id": payment.id,
-                    "session_url": payment.session_url,
-                    "status": payment.status,
-                }
-                for payment in renewed_payments
-            ]
-
-        return Response(BookingReadSerializer(booking).data, status=status.HTTP_200_OK)

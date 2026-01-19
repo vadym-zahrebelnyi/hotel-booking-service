@@ -1,11 +1,6 @@
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-
-from payment.models import Payment
-from payment.services.stripe_service import create_checkout_session
-
-
 from django.utils import timezone
 
 from payment.models import Payment
@@ -45,6 +40,7 @@ def create_booking_payment(booking, event):
     )
 
     return payment
+
 
 def renew_payment_session(payment: Payment) -> Payment:
     """

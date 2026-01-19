@@ -12,11 +12,13 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='TelegramSubscriber',
+            name='Room',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('chat_id', models.BigIntegerField(unique=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('number', models.CharField(max_length=255, unique=True)),
+                ('type', models.CharField(choices=[('Single', 'Single'), ('Double', 'Double'), ('Suite', 'Suite')], max_length=20)),
+                ('price_per_night', models.DecimalField(decimal_places=2, max_digits=10)),
+                ('capacity', models.PositiveIntegerField()),
             ],
         ),
     ]

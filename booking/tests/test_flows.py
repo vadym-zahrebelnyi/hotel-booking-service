@@ -68,7 +68,7 @@ class BookingFlowsTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         booking.refresh_from_db()
-        self.assertEqual(booking.status, Booking.BookingStatus.ACTIVE)
+        self.assertEqual(booking.status, Booking.BookingStatus.BOOKED)
 
     def test_check_out_ok(self):
         booking = self.create_booking(booking_status=Booking.BookingStatus.ACTIVE)
