@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -57,18 +58,23 @@ class BookingFlowsTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_check_in_ok(self):
+    @patch("booking.views.create_checkout_session")
+    def test_check_in_ok(self, mock_create_session):
+        mock_create_session.return_value = {
+            "id": "cs_test_mocked",
+            "url": "https://stripe.test/session",
+        }
+
         booking = self.create_booking(
             booking_status=Booking.BookingStatus.BOOKED,
             check_in_offset_days=0,
         )
-
         url = reverse("booking:booking-check-in", args=[booking.id])
         response = self.client.post(url)
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         booking.refresh_from_db()
         self.assertEqual(booking.status, Booking.BookingStatus.BOOKED)
+        mock_create_session.assert_called_once()
 
     def test_check_out_ok(self):
         booking = self.create_booking(booking_status=Booking.BookingStatus.ACTIVE)
