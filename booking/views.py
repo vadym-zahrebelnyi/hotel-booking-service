@@ -3,6 +3,7 @@ from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import (
     OpenApiParameter,
+    OpenApiResponse,
     OpenApiTypes,
     extend_schema,
 )
@@ -22,7 +23,6 @@ from payment.services.payment_service import (
     renew_payment_session,
 )
 from payment.services.stripe_service import create_checkout_session
-from payment.tasks import create_stripe_payment_task
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -119,7 +119,19 @@ class BookingViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
-    @extend_schema(request=None)
+    @extend_schema(
+        request=None,
+        summary="Check in",
+        description="Performs check in",
+        responses={
+            200: BookingReadSerializer,
+            400: OpenApiResponse(description="Business logic validation error"),
+            401: OpenApiResponse(
+                description="Authentication credentials were not provided or are invalid"
+            ),
+            404: OpenApiResponse(description="Booking not found"),
+        },
+    )
     @action(detail=True, methods=["post"], url_path="check-in")
     def check_in(self, request, pk=None):
         booking = self.get_object()
@@ -169,6 +181,19 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         return Response(BookingReadSerializer(booking).data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=None,
+        summary="Cancel",
+        description=("Performs cancellation of booking"),
+        responses={
+            200: BookingReadSerializer,
+            400: OpenApiResponse(description="Business logic validation error"),
+            401: OpenApiResponse(
+                description="Authentication credentials were not provided or are invalid"
+            ),
+            404: OpenApiResponse(description="Booking not found"),
+        },
+    )
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
         booking = self.get_object()
@@ -215,6 +240,19 @@ class BookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK,
             )
 
+    @extend_schema(
+        request=None,
+        summary="Check out",
+        description=("Performs check out from room"),
+        responses={
+            200: BookingReadSerializer,
+            400: OpenApiResponse(description="Business logic validation error"),
+            401: OpenApiResponse(
+                description="Authentication credentials were not provided or are invalid"
+            ),
+            404: OpenApiResponse(description="Booking not found"),
+        },
+    )
     @action(detail=True, methods=["post"], url_path="check-out")
     def check_out(self, request, pk=None):
         booking = self.get_object()
@@ -266,35 +304,6 @@ class BookingViewSet(viewsets.ModelViewSet):
                 }
                 for payment in renewed_payments
             ]
-
-        return Response(
-            BookingReadSerializer(booking).data,
-            status=status.HTTP_200_OK,
-        )
-
-    @action(detail=True, methods=["post"], url_path="no-show")
-    def no_show(self, request, pk=None):
-        booking = self.get_object()
-
-        if booking.status != Booking.BookingStatus.BOOKED:
-            return Response(
-                {"detail": "Only BOOKED bookings can be marked as NO_SHOW."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        with transaction.atomic():
-            booking.status = Booking.BookingStatus.NO_SHOW
-            booking.save(update_fields=["status"])
-
-            if not booking.payments.filter(
-                type=Payment.PaymentType.NO_SHOW_FEE
-            ).exists():
-                transaction.on_commit(
-                    lambda: create_stripe_payment_task.delay(
-                        booking.id,
-                        Payment.PaymentType.NO_SHOW_FEE,
-                    )
-                )
 
         return Response(
             BookingReadSerializer(booking).data,
