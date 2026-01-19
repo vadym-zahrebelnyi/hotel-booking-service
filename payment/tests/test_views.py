@@ -49,19 +49,15 @@ class AuthenticatedPaymentApiTests(APITestCase):
     def test_payment_success_view_authenticated(self):
         """Test the payment success page for authenticated user."""
         res = self.client.get(
-            PAYMENT_SUCCESS_URL,
-            {"session_id": self.payment.session_id}
+            PAYMENT_SUCCESS_URL, {"session_id": self.payment.session_id}
         )
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(
             res.data["detail"],
-            "Thank you for your payment! Your booking is being processed."
+            "Thank you for your payment! Your booking is being processed.",
         )
-        self.assertEqual(
-            res.data["payment_status"],
-            Payment.PaymentStatus.PENDING
-        )
+        self.assertEqual(res.data["payment_status"], Payment.PaymentStatus.PENDING)
 
     def test_payment_cancel_view_authenticated(self):
         """Test the payment cancel page for authenticated user."""
@@ -69,8 +65,7 @@ class AuthenticatedPaymentApiTests(APITestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            res.data["detail"],
-            "Payment was cancelled. You can complete it later."
+            res.data["detail"], "Payment was cancelled. You can complete it later."
         )
 
     @mock.patch("stripe.Webhook.construct_event")
