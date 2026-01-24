@@ -4,6 +4,8 @@ from rest_framework import serializers
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """Serializer class for Guest model"""
+
     class Meta:
         model = get_user_model()
         fields = ("id", "email", "password", "first_name", "last_name", "is_staff")

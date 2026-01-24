@@ -9,6 +9,7 @@ LOGIN_URL = reverse("guest:login")
 
 
 def create_user(**params):
+    """Creates user with given parameters"""
     return get_user_model().objects.create_user(**params)
 
 

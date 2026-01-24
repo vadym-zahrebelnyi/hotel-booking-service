@@ -1,4 +1,3 @@
-# Create your views here.
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
