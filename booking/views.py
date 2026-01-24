@@ -17,6 +17,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from booking.filters import BookingFilter
 from booking.models import Booking
 from booking.serializers import BookingCreateSerializer, BookingReadSerializer
+from booking.validators import validate_user_has_no_pending_payments, validate_booking_can_check_in, \
+    validate_booking_can_cancel, is_late_cancellation, validate_booking_can_check_out, is_overstay
 from payment.models import Payment
 from payment.services.payment_service import (
     calculate_payment_amount,
@@ -69,16 +71,12 @@ class BookingViewSet(viewsets.ModelViewSet):
         ),
     )
     def create(self, request, *args, **kwargs):
-        """Create new booking with user auto-attachment and price from room."""
-        has_pending_payment = Payment.objects.filter(
-            booking__user=request.user,
-            status=Payment.PaymentStatus.PENDING,
-        ).exists()
-
-        if has_pending_payment:
-            raise ValidationError(
-                "You cannot create a new booking while you have a pending payment."
-            )
+        """
+        Create a new booking.
+        Validates that the user doesn't have any pending payments before
+        allowing a new booking creation.
+        """
+        validate_user_has_no_pending_payments(request.user)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
@@ -186,28 +184,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         Can recover NO_SHOW bookings by checking them in.
         """
         booking = self.get_object()
-        today = timezone.localdate()
-
-        if booking.status not in (
-            Booking.BookingStatus.BOOKED,
-            Booking.BookingStatus.NO_SHOW,
-        ):
-            return Response(
-                {"detail": "Check-in is allowed only for BOOKED or NO_SHOW bookings."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if today < booking.check_in_date:
-            return Response(
-                {"detail": "Too early to check in."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if today >= booking.check_out_date:
-            return Response(
-                {"detail": "Check-in is not possible after check-out date."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        validate_booking_can_check_in(booking)
         payment_type = (
             Payment.PaymentType.NO_SHOW_FEE
             if booking.status == Booking.BookingStatus.NO_SHOW
@@ -253,23 +230,9 @@ class BookingViewSet(viewsets.ModelViewSet):
         if within 24 hours of check-in.
         """
         booking = self.get_object()
-        today = timezone.localdate()
-
-        if booking.status != Booking.BookingStatus.BOOKED:
-            return Response(
-                {"detail": "Only BOOKED bookings can be cancelled."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if today >= booking.check_in_date:
-            return Response(
-                {"detail": "Cancellation is allowed only before check-in date."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        hours_to_checkin = (booking.check_in_date - today).total_seconds() / 3600
+        validate_booking_can_cancel(booking)
         with transaction.atomic():
-            if hours_to_checkin > 24:
+            if not is_late_cancellation(booking) > 24:
                 booking.status = Booking.BookingStatus.CANCELLED
                 booking.save(update_fields=["status"])
             else:
@@ -319,15 +282,11 @@ class BookingViewSet(viewsets.ModelViewSet):
         """
         booking = self.get_object()
 
-        if booking.status != Booking.BookingStatus.ACTIVE:
-            return Response(
-                {"detail": "Only ACTIVE bookings can be checked out."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        validate_booking_can_check_out(booking)
 
         with transaction.atomic():
             today = timezone.localdate()
-            if today > booking.check_out_date:
+            if is_overstay(booking, today):
                 payment, _ = Payment.objects.get_or_create(
                     booking=booking,
                     type=Payment.PaymentType.OVERSTAY_FEE,
