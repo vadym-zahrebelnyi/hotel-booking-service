@@ -16,6 +16,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -30,6 +31,11 @@ from payment.services.payment_service import renew_payment_session
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
+@extend_schema(
+    summary="List payments",
+    description="Retrieve a list of all payments ordered by newest first.",
+    responses={200: PaymentSerializer(many=True)},
+)
 class PaymentListView(generics.ListAPIView):
     """
     API view for retrieving a list of all payments.
@@ -45,6 +51,20 @@ class PaymentListView(generics.ListAPIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
+@extend_schema(
+    summary="Stripe webhook endpoint",
+    description=(
+        "Receives webhook events from Stripe and processes "
+        "`checkout.session.completed` events."
+    ),
+    request=None,
+    responses={
+        200: OpenApiResponse(description="Event processed successfully"),
+        400: OpenApiResponse(description="Invalid Stripe signature or request"),
+        401: OpenApiResponse(description="Stripe authentication error"),
+        502: OpenApiResponse(description="Stripe service error"),
+    },
+)
 class StripeWebhook(APIView):
     """
     Stripe webhook endpoint.
@@ -140,6 +160,24 @@ class PaymentSuccessView(APIView):
     authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Payment success callback",
+        description="Returns payment and booking information after successful Stripe checkout.",
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Stripe checkout session ID",
+                required=True,
+            )
+        ],
+        responses={
+            200: OpenApiResponse(description="Payment confirmed"),
+            400: OpenApiResponse(description="Missing session_id"),
+            404: OpenApiResponse(description="Payment not found"),
+        },
+    )
     def get(self, request):
         """
         Retrieve payment status using a Stripe session ID.
@@ -183,6 +221,11 @@ class PaymentCancelView(APIView):
     authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Payment cancelled",
+        description="Returned when a Stripe payment is cancelled by the user.",
+        responses={200: OpenApiResponse(description="Payment cancelled")},
+    )
     def get(self, request):
         """
         Return a message indicating that the payment was cancelled.
@@ -207,6 +250,15 @@ class PaymentRenewView(APIView):
     authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Renew payment session",
+        description="Creates a new Stripe checkout session for an existing payment.",
+        responses={
+            200: PaymentSerializer,
+            400: OpenApiResponse(description="Invalid payment state"),
+            404: OpenApiResponse(description="Payment not found"),
+        },
+    )
     def post(self, request, pk):
         """
         Renew a Stripe payment session for an existing payment.
