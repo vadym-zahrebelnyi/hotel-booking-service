@@ -26,6 +26,11 @@ from payment.services.stripe_service import create_checkout_session
 
 
 class BookingViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing hotel bookings.
+    Provides CRUD operations for bookings with role-based access control,
+    filtering capabilities, and custom actions for booking lifecycle management.
+    """
     serializer_class = BookingReadSerializer
     authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
@@ -33,6 +38,7 @@ class BookingViewSet(viewsets.ModelViewSet):
     filterset_class = BookingFilter
 
     def get_queryset(self):
+        """Get queryset of bookings based on user permissions."""
         queryset = Booking.objects.select_related("room", "user")
 
         if self.request.user.is_staff:
@@ -41,6 +47,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         return queryset.filter(user=self.request.user)
 
     def get_serializer_class(self):
+        """Return appropriate serializer class based on action."""
         if self.action == "create":
             return BookingCreateSerializer
         return BookingReadSerializer
@@ -117,6 +124,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         ],
     )
     def list(self, request, *args, **kwargs):
+        """List bookings with optional filtering."""
         return super().list(request, *args, **kwargs)
 
     @extend_schema(
@@ -134,6 +142,12 @@ class BookingViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"], url_path="check-in")
     def check_in(self, request, pk=None):
+        """
+        Check in to a booking.
+
+        Transitions booking status to ACTIVE and ensures payment session exists.
+        Can recover NO_SHOW bookings by checking them in.
+        """
         booking = self.get_object()
         today = timezone.localdate()
 
@@ -196,6 +210,11 @@ class BookingViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
+        """
+        Cancel a booking.
+        Cancels the booking and applies cancellation fee
+        if within 24 hours of check-in.
+        """
         booking = self.get_object()
         today = timezone.localdate()
 
@@ -255,6 +274,12 @@ class BookingViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"], url_path="check-out")
     def check_out(self, request, pk=None):
+        """
+        Check out from a booking.
+
+        Completes the booking and handles overstay fees if applicable.
+        Automatically renews expired payment sessions.
+        """
         booking = self.get_object()
 
         if booking.status != Booking.BookingStatus.ACTIVE:

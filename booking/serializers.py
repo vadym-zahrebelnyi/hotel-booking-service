@@ -7,6 +7,11 @@ from payment.serializers import PaymentSerializer
 
 
 class BookingReadSerializer(serializers.ModelSerializer):
+    """
+    Serializer for reading booking data.
+    Provides a comprehensive view of booking information including
+    nested room and user details, calculated fields, and related payments.
+    """
     room_number = serializers.CharField(source="room.number", read_only=True)
     room_type = serializers.CharField(source="room.type", read_only=True)
     user_email = serializers.EmailField(source="user.email", read_only=True)
@@ -15,6 +20,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
 
     class Meta:
+        """Meta configuration for BookingReadSerializer."""
         model = Booking
         fields = (
             "id",
@@ -34,9 +40,11 @@ class BookingReadSerializer(serializers.ModelSerializer):
         )
 
     def get_total_nights(self, obj):
+        """Calculate total number of nights for the booking."""
         return (obj.check_out_date - obj.check_in_date).days
 
     def get_total_price(self, obj):
+        """Calculate total price for the entire booking."""
         nights = (obj.check_out_date - obj.check_in_date).days
         return obj.price_per_night * nights
 

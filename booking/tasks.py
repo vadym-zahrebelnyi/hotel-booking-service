@@ -7,7 +7,10 @@ from notifications.tasks import notify_no_show_telegram
 
 @shared_task
 def mark_no_show_bookings():
-    """Mark bookings as NO_SHOW if check-in date passed and status still BOOKED"""
+    """
+    Mark bookings as NO_SHOW if guests fail to check in on time.
+    Scheduled Task: Runs daily at midnight via Celery Beat.
+    """""
     today = localdate()
 
     bookings = Booking.objects.filter(
