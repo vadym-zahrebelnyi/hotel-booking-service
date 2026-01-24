@@ -15,9 +15,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - .:/app
-
 
   db:
     image: postgres:16-alpine
@@ -45,8 +42,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - .:/app
     restart: unless-stopped
 
   celery-beat:
@@ -63,8 +58,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - .:/app
     restart: unless-stopped
   redis:
     image: redis:7-alpine
@@ -76,17 +69,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-#  telegram_bot:
-#    build:
-#      context: .
-#    command: python manage.py run_telegram_bot
-#    env_file:
-#      - .env
-#    depends_on:
-#      - db
-#      - redis
-#    restart: unless-stopped
 
 volumes:
   db_data:
