@@ -32,10 +32,9 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /app /app
 
-RUN mkdir -p /vol/web/media /vol/web/static && \
-    adduser --disabled-password --no-create-home django-user && \
-    chown -R django-user:django-user /vol/ && \
-    chmod -R 755 /vol/
+RUN adduser --disabled-password --no-create-home django-user && \
+    chown -R django-user:django-user /app/ && \
+    chmod -R 755 /app/
 
 USER django-user
 
