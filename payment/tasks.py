@@ -4,8 +4,6 @@ from celery import shared_task
 from django.utils import timezone
 
 from booking.models import Booking
-from notifications.messages import generate_success_payment_message
-from notifications.tasks import send_telegram_notification
 from payment.models import Payment
 from payment.services.payment_service import create_booking_payment
 
@@ -44,5 +42,3 @@ def expire_stripe_sessions():
     count = expired_payments.update(status=Payment.PaymentStatus.EXPIRED)
 
     return f"Expired {count} payments older than 24 hours"
-
-

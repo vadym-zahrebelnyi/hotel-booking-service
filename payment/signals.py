@@ -3,8 +3,9 @@ import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from payment.models import Payment
 from notifications.tasks import notify_successful_payment_telegram
+from payment.models import Payment
+
 logger = logging.getLogger(__name__)
 
 

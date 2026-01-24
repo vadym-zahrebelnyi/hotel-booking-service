@@ -1,19 +1,20 @@
-
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from booking.models import Booking
-from notifications.messages import generate_booking_creation_message, \
-    generate_booking_cancellation_message
+from notifications.messages import (
+    generate_booking_cancellation_message,
+    generate_booking_creation_message,
+)
 from notifications.tasks import send_telegram_notification
 
 
 @receiver(post_save, sender=Booking)
 def booking_notification(sender, instance, created, **kwargs):
     if created:
-        send_telegram_notification.delay(
-            generate_booking_creation_message(instance))
+        send_telegram_notification.delay(generate_booking_creation_message(instance))
     else:
         if instance.status == "CANCELLED":
             send_telegram_notification.delay(
-                generate_booking_cancellation_message(instance))
+                generate_booking_cancellation_message(instance)
+            )

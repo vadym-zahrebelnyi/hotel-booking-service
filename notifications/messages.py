@@ -25,6 +25,7 @@ def generate_booking_cancellation_message(instance: Booking) -> str:
     )
     return message
 
+
 def generate_success_payment_message(booking: Booking, payment: Payment) -> str:
     message = (
         f"✅ Payment Successful\n"
@@ -36,6 +37,7 @@ def generate_success_payment_message(booking: Booking, payment: Payment) -> str:
         f"Amount Paid: ${payment.money_to_pay}"
     )
     return message
+
 
 def generate_no_show_message(instance: Booking) -> str:
     message = (

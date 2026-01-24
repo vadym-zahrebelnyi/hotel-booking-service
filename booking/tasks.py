@@ -1,4 +1,3 @@
-
 from celery import shared_task
 from django.utils.timezone import localdate
 
@@ -24,4 +23,3 @@ def mark_no_show_bookings():
         notify_no_show_telegram.delay(booking.id)
 
     return f"Marked {marked_count} bookings as NO_SHOW"
-
