@@ -1,13 +1,13 @@
-from decimal import Decimal
 from datetime import date, timedelta
+from decimal import Decimal
 
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from booking.models import Booking
+from guest.models import Guest
 from payment.models import Payment
 from room.models import Room
-from guest.models import Guest
 
 
 class PaymentAPITestCase(APITestCase):
