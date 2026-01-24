@@ -52,6 +52,22 @@ class BookingViewSet(viewsets.ModelViewSet):
             return BookingCreateSerializer
         return BookingReadSerializer
 
+    @extend_schema(
+        request=BookingCreateSerializer,
+        responses={
+            201: BookingReadSerializer,
+            400: OpenApiResponse(
+                description="Validation error or user has pending payment"
+            ),
+            401: OpenApiResponse(
+                description="Authentication credentials were not provided or are invalid"
+            ),
+        },
+        summary="Create booking",
+        description=(
+                "Create a new hotel room booking."
+        ),
+    )
     def create(self, request, *args, **kwargs):
         """Create new booking with user auto-attachment and price from room."""
         has_pending_payment = Payment.objects.filter(
@@ -126,6 +142,27 @@ class BookingViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         """List bookings with optional filtering."""
         return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Retrieve booking",
+        description=(
+                "Retrieve detailed information about a specific booking."
+        ),
+        responses={
+            200: BookingReadSerializer,
+            401: OpenApiResponse(
+                description="Authentication credentials were not provided or are invalid"
+            ),
+            404: OpenApiResponse(
+                description="Booking not found or user doesn't have permission to view it"
+            ),
+        },
+    )
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieve a single booking by ID.
+        """
+        return super().retrieve(request, *args, **kwargs)
 
     @extend_schema(
         request=None,
