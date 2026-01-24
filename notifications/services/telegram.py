@@ -6,27 +6,64 @@ from aiogram.exceptions import (
     AiogramError,
     DetailedAiogramError,
     TelegramAPIError,
+    TelegramNetworkError,
+    TelegramRetryAfter,
 )
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
 
+class TelegramNotificationService:
+    def __init__(self):
+        token = settings.TELEGRAM_BOT_TOKEN
+        if not token:
+            logger.error("TELEGRAM_BOT_TOKEN is not set!")
+            raise ValueError("TELEGRAM_BOT_TOKEN is missing!")
 
-async def send_telegram_message(chat_id: int, text: str) -> None:
-    try:
-        await bot.send_message(chat_id=chat_id, text=text)
+        self.bot = Bot(token=token, timeout=10)
 
-    except TelegramAPIError as e:
-        logger.error(f"Telegram API error: {e}")
+    async def _send_message_async(self, chat_id: int, text: str) -> None:
+        try:
+            text = text[:4000]
 
-    except DetailedAiogramError as e:
-        logger.error(f"Detailed aiogram error: {e}")
+            await self.bot.send_message(chat_id=chat_id, text=text)
+            logger.info("Successfully sent message to chat_id=%s", chat_id)
 
-    except AiogramError as e:
-        logger.error(f"Aiogram error: {e}")
+        except TelegramRetryAfter as e:
+            logger.warning(
+                "Rate limited for chat_id=%s, retry after %s seconds",
+                chat_id,
+                e.retry_after,
+            )
+            raise
 
+        except TelegramNetworkError:
+            logger.warning("Telegram network error for chat_id=%s", chat_id)
+            raise
 
-def send_telegram_message_sync(chat_id: int, text: str) -> None:
-    asyncio.run(send_telegram_message(chat_id, text))
+        except TelegramAPIError as e:
+            logger.error("Telegram API error for chat_id=%s: %s", chat_id, e)
+            raise
+
+        except DetailedAiogramError as e:
+            logger.error("Detailed aiogram error for chat_id=%s: %s", chat_id, e)
+            raise
+
+        except AiogramError as e:
+            logger.error("General aiogram error for chat_id=%s: %s", chat_id, e)
+            raise
+
+        except Exception:
+            logger.exception(
+                "Unexpected error when sending message to chat_id=%s",
+                chat_id,
+            )
+            raise
+
+    def send_sync(self, chat_id: int, text: str) -> None:
+        asyncio.run(self._send_message_async(chat_id, text))
+
+    async def close_bot_session(self) -> None:
+        if self.bot.session:
+            await self.bot.session.close()
