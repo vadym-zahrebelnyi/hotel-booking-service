@@ -60,9 +60,25 @@ class StripeWebhook(APIView):
                 payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
             )
         except stripe.error.SignatureVerificationError:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Invalid Stripe signature"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except stripe.error.AuthenticationError as e:
+            return Response(
+                {"detail": "Stripe authentication failed", "error": str(e)},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except stripe.error.InvalidRequestError as e:
+            return Response(
+                {"detail": "Invalid Stripe request", "error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except stripe.error.StripeError as e:
+            return Response(
+                {"detail": "Stripe service error", "error": str(e)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
         if event["type"] == "checkout.session.completed":
             session = event["data"]["object"]
