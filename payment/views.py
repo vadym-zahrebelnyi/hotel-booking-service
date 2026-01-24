@@ -46,10 +46,26 @@ class PaymentListView(generics.ListAPIView):
 
 @method_decorator(csrf_exempt, name="dispatch")
 class StripeWebhook(APIView):
+    """
+    Stripe webhook endpoint.
+
+    Receives and processes webhook events sent by Stripe.
+    Validates the event signature and handles successful
+    checkout session completion.
+    """
+
     authentication_classes = []
     permission_classes = []
 
     def post(self, request, *args, **kwargs):
+        """
+        Handle Stripe webhook POST requests.
+
+        Verifies the Stripe webhook signature, processes the
+        `checkout.session.completed` event, updates the payment
+        status, and updates the related booking status.
+        """
+
         payload = request.body
         sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
         endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
