@@ -15,7 +15,15 @@ from room.permissions import IsAdminOrReadOnly
 from room.serializers import RoomCalendarSerializer, RoomSerializer
 
 
+@extend_schema(tags=["Rooms"])
 class RoomViewSet(ModelViewSet):
+    """
+    ViewSet for managing rooms.
+
+    Supports listing, retrieving, creating, updating rooms
+    and retrieving room availability calendar.
+    """
+
     queryset = Room.objects.all().order_by("id")
     serializer_class = RoomSerializer
     permission_classes = (IsAdminOrReadOnly,)
@@ -24,6 +32,8 @@ class RoomViewSet(ModelViewSet):
     filterset_fields = ("type", "capacity")
 
     def get_serializer_class(self):
+        """Return serializer class depending on the current action."""
+
         if self.action == "calendar":
             return RoomCalendarSerializer
         return RoomSerializer
@@ -64,6 +74,13 @@ class RoomViewSet(ModelViewSet):
     )
     @action(methods=["GET"], detail=True, url_path="calendar", filter_backends=[])
     def get_calendar(self, request, pk=None):
+        """
+        Return room availability calendar for a given date range.
+
+        Dates between date_from and date_to (inclusive) are returned
+        with availability status.
+        """
+
         room = self.get_object()
 
         date_from_str = request.query_params.get("date_from")
