@@ -9,7 +9,6 @@ from drf_spectacular.utils import (
 )
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -17,6 +16,14 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from booking.filters import BookingFilter
 from booking.models import Booking
 from booking.serializers import BookingCreateSerializer, BookingReadSerializer
+from booking.validators import (
+    is_late_cancellation,
+    is_overstay,
+    validate_booking_can_cancel,
+    validate_booking_can_check_in,
+    validate_booking_can_check_out,
+    validate_user_has_no_pending_payments,
+)
 from payment.models import Payment
 from payment.services.payment_service import (
     calculate_payment_amount,
@@ -26,6 +33,12 @@ from payment.services.stripe_service import create_checkout_session
 
 
 class BookingViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing hotel bookings.
+    Provides CRUD operations for bookings with role-based access control,
+    filtering capabilities, and custom actions for booking lifecycle management.
+    """
+
     serializer_class = BookingReadSerializer
     authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
@@ -33,6 +46,7 @@ class BookingViewSet(viewsets.ModelViewSet):
     filterset_class = BookingFilter
 
     def get_queryset(self):
+        """Get queryset of bookings based on user permissions."""
         queryset = Booking.objects.select_related("room", "user")
 
         if self.request.user.is_staff:
@@ -41,21 +55,32 @@ class BookingViewSet(viewsets.ModelViewSet):
         return queryset.filter(user=self.request.user)
 
     def get_serializer_class(self):
+        """Return appropriate serializer class based on action."""
         if self.action == "create":
             return BookingCreateSerializer
         return BookingReadSerializer
 
+    @extend_schema(
+        request=BookingCreateSerializer,
+        responses={
+            201: BookingReadSerializer,
+            400: OpenApiResponse(
+                description="Validation error or user has pending payment"
+            ),
+            401: OpenApiResponse(
+                description="Authentication credentials were not provided or are invalid"
+            ),
+        },
+        summary="Create booking",
+        description=("Create a new hotel room booking."),
+    )
     def create(self, request, *args, **kwargs):
-        """Create new booking with user auto-attachment and price from room."""
-        has_pending_payment = Payment.objects.filter(
-            booking__user=request.user,
-            status=Payment.PaymentStatus.PENDING,
-        ).exists()
-
-        if has_pending_payment:
-            raise ValidationError(
-                "You cannot create a new booking while you have a pending payment."
-            )
+        """
+        Create a new booking.
+        Validates that the user doesn't have any pending payments before
+        allowing a new booking creation.
+        """
+        validate_user_has_no_pending_payments(request.user)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
@@ -117,7 +142,27 @@ class BookingViewSet(viewsets.ModelViewSet):
         ],
     )
     def list(self, request, *args, **kwargs):
+        """List bookings with optional filtering."""
         return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Retrieve booking",
+        description=("Retrieve detailed information about a specific booking."),
+        responses={
+            200: BookingReadSerializer,
+            401: OpenApiResponse(
+                description="Authentication credentials were not provided or are invalid"
+            ),
+            404: OpenApiResponse(
+                description="Booking not found or user doesn't have permission to view it"
+            ),
+        },
+    )
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieve a single booking by ID.
+        """
+        return super().retrieve(request, *args, **kwargs)
 
     @extend_schema(
         request=None,
@@ -134,29 +179,14 @@ class BookingViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"], url_path="check-in")
     def check_in(self, request, pk=None):
+        """
+        Check in to a booking.
+
+        Transitions booking status to ACTIVE and ensures payment session exists.
+        Can recover NO_SHOW bookings by checking them in.
+        """
         booking = self.get_object()
-        today = timezone.localdate()
-
-        if booking.status not in (
-            Booking.BookingStatus.BOOKED,
-            Booking.BookingStatus.NO_SHOW,
-        ):
-            return Response(
-                {"detail": "Check-in is allowed only for BOOKED or NO_SHOW bookings."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if today < booking.check_in_date:
-            return Response(
-                {"detail": "Too early to check in."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if today >= booking.check_out_date:
-            return Response(
-                {"detail": "Check-in is not possible after check-out date."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        validate_booking_can_check_in(booking)
         payment_type = (
             Payment.PaymentType.NO_SHOW_FEE
             if booking.status == Booking.BookingStatus.NO_SHOW
@@ -196,24 +226,15 @@ class BookingViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
+        """
+        Cancel a booking.
+        Cancels the booking and applies cancellation fee
+        if within 24 hours of check-in.
+        """
         booking = self.get_object()
-        today = timezone.localdate()
-
-        if booking.status != Booking.BookingStatus.BOOKED:
-            return Response(
-                {"detail": "Only BOOKED bookings can be cancelled."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if today >= booking.check_in_date:
-            return Response(
-                {"detail": "Cancellation is allowed only before check-in date."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        hours_to_checkin = (booking.check_in_date - today).total_seconds() / 3600
+        validate_booking_can_cancel(booking)
         with transaction.atomic():
-            if hours_to_checkin > 24:
+            if not is_late_cancellation(booking):
                 booking.status = Booking.BookingStatus.CANCELLED
                 booking.save(update_fields=["status"])
             else:
@@ -255,17 +276,19 @@ class BookingViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"], url_path="check-out")
     def check_out(self, request, pk=None):
+        """
+        Check out from a booking.
+
+        Completes the booking and handles overstay fees if applicable.
+        Automatically renews expired payment sessions.
+        """
         booking = self.get_object()
 
-        if booking.status != Booking.BookingStatus.ACTIVE:
-            return Response(
-                {"detail": "Only ACTIVE bookings can be checked out."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        validate_booking_can_check_out(booking)
 
         with transaction.atomic():
             today = timezone.localdate()
-            if today > booking.check_out_date:
+            if is_overstay(booking, today):
                 payment, _ = Payment.objects.get_or_create(
                     booking=booking,
                     type=Payment.PaymentType.OVERSTAY_FEE,

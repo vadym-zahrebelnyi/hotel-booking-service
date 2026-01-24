@@ -1,4 +1,5 @@
 import os
+
 from celery import shared_task
 
 from booking.models import Booking
@@ -41,11 +42,11 @@ def notify_successful_payment_telegram(booking_id):
     """Send detailed notification to Telegram about successful payment"""
     try:
         booking = Booking.objects.select_related("room", "user").get(id=booking_id)
-        payment = booking.payments.filter(status=Payment.PaymentStatus.PAID).latest("id")
+        payment = booking.payments.filter(status=Payment.PaymentStatus.PAID).latest(
+            "id"
+        )
     except (Booking.DoesNotExist, Payment.DoesNotExist):
         return f"Could not find booking or payment for booking_id {booking_id}"
 
-    send_telegram_notification.delay(
-        generate_success_payment_message(booking, payment)
-    )
+    send_telegram_notification.delay(generate_success_payment_message(booking, payment))
     return "Successfully triggered success notification."

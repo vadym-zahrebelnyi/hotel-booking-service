@@ -4,7 +4,6 @@ from django.utils.dateparse import parse_date
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -13,6 +12,7 @@ from booking.models import Booking
 from room.models import Room
 from room.permissions import IsAdminOrReadOnly
 from room.serializers import RoomCalendarSerializer, RoomSerializer
+from room.validators import validate_calendar_request
 
 
 @extend_schema(tags=["Rooms"])
@@ -86,26 +86,10 @@ class RoomViewSet(ModelViewSet):
         date_from_str = request.query_params.get("date_from")
         date_to_str = request.query_params.get("date_to")
 
-        if not date_from_str or not date_to_str:
-            return Response(
-                {"detail": "date_from and date_to are required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        date_from = parse_date(date_from_str) if date_from_str else None
+        date_to = parse_date(date_to_str) if date_to_str else None
 
-        date_from = parse_date(date_from_str)
-        date_to = parse_date(date_to_str)
-
-        if not date_from or not date_to:
-            return Response(
-                {"detail": "Invalid date format. Use YYYY-MM-DD."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if date_from > date_to:
-            return Response(
-                {"detail": "date_from must be before date_to"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        validate_calendar_request(date_from_str, date_to_str, date_from, date_to)
 
         bookings = Booking.objects.filter(
             room=room,
