@@ -1,33 +1,47 @@
 import os
 
 from celery import shared_task
+from django.conf import settings # Import settings to get TELEGRAM_CHAT_ID
 
 from booking.models import Booking
 from notifications.messages import (
     generate_no_show_message,
     generate_success_payment_message,
 )
-from notifications.services.telegram import send_telegram_message_sync
+from notifications.services.telegram import TelegramNotificationService
 from payment.models import Payment
+
+from aiogram.exceptions import TelegramRetryAfter, TelegramNetworkError
+
+telegram_notification_service = TelegramNotificationService()
 
 
 @shared_task(
     bind=True,
-    autoretry_for=(Exception,),
-    retry_kwargs={"max_retries": 3, "countdown": 10},
+    autoretry_for=(TelegramRetryAfter, TelegramNetworkError, ValueError, Exception,),
+    retry_kwargs={"max_retries": 5, "countdown": 30},
 )
 def send_telegram_notification(self, message: str):
     """
-    Send notification message to all subscribed Telegram admins
+    Sends notification message to a specific Telegram chat.
     """
-    chat_id = os.getenv("CHAT_ID")
+    chat_id = settings.CHAT_ID
     if not chat_id:
-        raise ValueError("CHAT_ID is missing")
+        raise self.retry(exc=ValueError("CHAT_ID is missing in settings."))
 
-    send_telegram_message_sync(
-        chat_id=int(chat_id),
-        text=message,
-    )
+    try:
+        telegram_notification_service.send_sync(
+            chat_id=int(chat_id),
+            text=message,
+        )
+    except (TelegramRetryAfter, TelegramNetworkError, ValueError) as e:
+        self.request.logger.warning(f"Caught retryable error: {e}. Retrying task...")
+        raise self.retry(exc=e)
+    except Exception as e:
+        self.request.logger.exception(
+            f"Unexpected error in send_telegram_notification task: {e}"
+        )
+        raise
 
 
 @shared_task
