@@ -1,3 +1,15 @@
+"""
+Payment views module.
+
+This module contains API views responsible for:
+- listing payments,
+- handling Stripe webhook events,
+- processing successful and cancelled payments,
+- renewing expired Stripe payment sessions.
+
+Stripe is used as a payment provider.
+"""
+
 import stripe
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -19,6 +31,13 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class PaymentListView(generics.ListAPIView):
+    """
+    API view for retrieving a list of all payments.
+
+    Requires authentication via JWT.
+    Returns payments ordered by descending ID.
+    """
+
     queryset = Payment.objects.all().order_by("-id")
     serializer_class = PaymentSerializer
     authentication_classes = (JWTAuthentication,)
@@ -80,10 +99,27 @@ class StripeWebhook(APIView):
 
 
 class PaymentSuccessView(APIView):
+    """
+    API view for handling successful payment redirects.
+
+    Used after Stripe checkout to confirm payment status
+    and return booking-related information.
+    """
+
     authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        """
+        Retrieve payment status using a Stripe session ID.
+
+        Query Parameters:
+            session_id (str): Stripe checkout session ID.
+
+        Returns:
+            Response: Payment status and booking ID.
+        """
+
         session_id = request.query_params.get("session_id")
         if not session_id:
             return Response(
@@ -107,10 +143,23 @@ class PaymentSuccessView(APIView):
 
 
 class PaymentCancelView(APIView):
+    """
+    API view for handling cancelled payment redirects.
+
+    Returned when a user cancels Stripe checkout.
+    """
+
     authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        """
+        Return a message indicating that the payment was cancelled.
+
+        Returns:
+            Response: Cancellation confirmation message.
+        """
+
         return Response(
             {"detail": "Payment was cancelled. You can complete it later."},
             status=status.HTTP_200_OK,
@@ -118,10 +167,26 @@ class PaymentCancelView(APIView):
 
 
 class PaymentRenewView(APIView):
+    """
+    API view for renewing an existing payment session.
+
+    Creates a new Stripe checkout session if the previous one expired.
+    """
+
     authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        """
+        Renew a Stripe payment session for an existing payment.
+
+        Args:
+            pk (int): Payment primary key.
+
+        Returns:
+            Response: Updated payment data or error message.
+        """
+
         try:
             payment = Payment.objects.get(pk=pk)
         except Payment.DoesNotExist:
