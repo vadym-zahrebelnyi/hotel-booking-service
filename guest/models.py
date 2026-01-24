@@ -38,7 +38,7 @@ class UserManager(BaseUserManager):
 
 
 class Guest(AbstractUser):
-    """User model."""
+    """User model"""
 
     username = None
     email = models.EmailField(_("email address"), unique=True)
