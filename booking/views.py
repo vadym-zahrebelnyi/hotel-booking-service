@@ -9,7 +9,6 @@ from drf_spectacular.utils import (
 )
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -17,8 +16,14 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from booking.filters import BookingFilter
 from booking.models import Booking
 from booking.serializers import BookingCreateSerializer, BookingReadSerializer
-from booking.validators import validate_user_has_no_pending_payments, validate_booking_can_check_in, \
-    validate_booking_can_cancel, is_late_cancellation, validate_booking_can_check_out, is_overstay
+from booking.validators import (
+    is_late_cancellation,
+    is_overstay,
+    validate_booking_can_cancel,
+    validate_booking_can_check_in,
+    validate_booking_can_check_out,
+    validate_user_has_no_pending_payments,
+)
 from payment.models import Payment
 from payment.services.payment_service import (
     calculate_payment_amount,
@@ -33,6 +38,7 @@ class BookingViewSet(viewsets.ModelViewSet):
     Provides CRUD operations for bookings with role-based access control,
     filtering capabilities, and custom actions for booking lifecycle management.
     """
+
     serializer_class = BookingReadSerializer
     authentication_classes = (JWTAuthentication,)
     permission_classes = [IsAuthenticated]
@@ -66,9 +72,7 @@ class BookingViewSet(viewsets.ModelViewSet):
             ),
         },
         summary="Create booking",
-        description=(
-                "Create a new hotel room booking."
-        ),
+        description=("Create a new hotel room booking."),
     )
     def create(self, request, *args, **kwargs):
         """
@@ -143,9 +147,7 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         summary="Retrieve booking",
-        description=(
-                "Retrieve detailed information about a specific booking."
-        ),
+        description=("Retrieve detailed information about a specific booking."),
         responses={
             200: BookingReadSerializer,
             401: OpenApiResponse(
@@ -232,7 +234,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking = self.get_object()
         validate_booking_can_cancel(booking)
         with transaction.atomic():
-            if not is_late_cancellation(booking) > 24:
+            if not is_late_cancellation(booking):
                 booking.status = Booking.BookingStatus.CANCELLED
                 booking.save(update_fields=["status"])
             else:

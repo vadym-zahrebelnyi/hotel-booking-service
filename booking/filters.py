@@ -8,6 +8,7 @@ class BookingFilter(django_filters.FilterSet):
     Provides filtering capabilities for bookings based on dates,
     room type, user, room ID, and booking status.
     """
+
     from_date = django_filters.DateFilter(field_name="check_in_date", lookup_expr="gte")
     to_date = django_filters.DateFilter(field_name="check_out_date", lookup_expr="lte")
 
@@ -15,5 +16,6 @@ class BookingFilter(django_filters.FilterSet):
 
     class Meta:
         """Meta configuration for BookingFilter."""
+
         model = Booking
         fields = ["user", "room", "status"]

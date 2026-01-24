@@ -11,8 +11,10 @@ class Booking(models.Model):
     Represents a reservation for a hotel room by a guest, including
     check-in/check-out dates, booking status, and pricing information.
     """
+
     class BookingStatus(models.TextChoices):
         """Enumeration of possible booking statuses."""
+
         BOOKED = "BOOKED"
         ACTIVE = "ACTIVE"
         COMPLETED = "COMPLETED"
@@ -31,6 +33,7 @@ class Booking(models.Model):
 
     class Meta:
         """Meta configuration for Booking model."""
+
         constraints = [
             models.CheckConstraint(
                 check=Q(check_out_date__gt=F("check_in_date")),

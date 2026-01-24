@@ -12,6 +12,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
     Provides a comprehensive view of booking information including
     nested room and user details, calculated fields, and related payments.
     """
+
     room_number = serializers.CharField(source="room.number", read_only=True)
     room_type = serializers.CharField(source="room.type", read_only=True)
     user_email = serializers.EmailField(source="user.email", read_only=True)
@@ -21,6 +22,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         """Meta configuration for BookingReadSerializer."""
+
         model = Booking
         fields = (
             "id",

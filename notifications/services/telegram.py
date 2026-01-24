@@ -1,6 +1,6 @@
 import asyncio
-
 import logging
+
 from aiogram import Bot
 from aiogram.exceptions import (
     AiogramError,
@@ -26,6 +26,7 @@ async def send_telegram_message(chat_id: int, text: str) -> None:
 
     except AiogramError as e:
         logger.error(f"Aiogram error: {e}")
+
 
 def send_telegram_message_sync(chat_id: int, text: str) -> None:
     asyncio.run(send_telegram_message(chat_id, text))

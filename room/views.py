@@ -4,7 +4,6 @@ from django.utils.dateparse import parse_date
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -90,7 +89,7 @@ class RoomViewSet(ModelViewSet):
         date_from = parse_date(date_from_str) if date_from_str else None
         date_to = parse_date(date_to_str) if date_to_str else None
 
-        validate_calendar_request(date_from_str,date_to_str, date_from, date_to)
+        validate_calendar_request(date_from_str, date_to_str, date_from, date_to)
 
         bookings = Booking.objects.filter(
             room=room,
