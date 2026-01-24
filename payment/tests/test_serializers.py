@@ -11,11 +11,9 @@ from room.models import Room
 
 
 class PaymentAPITestCase(APITestCase):
-
     def setUp(self):
         self.user = Guest.objects.create_user(
-            email="user@test.com",
-            password="password123"
+            email="user@test.com", password="password123"
         )
 
         self.client.force_authenticate(user=self.user)
@@ -50,10 +48,7 @@ class PaymentAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_payment_create_not_allowed(self):
-        response = self.client.post(
-            "/api/payments/",
-            {"booking": self.booking.id}
-        )
+        response = self.client.post("/api/payments/", {"booking": self.booking.id})
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_payment_create_invalid_booking(self):

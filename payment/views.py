@@ -93,9 +93,7 @@ class StripeWebhook(APIView):
         payment = None
 
         try:
-            event = stripe.Webhook.construct_event(
-                payload, sig_header, endpoint_secret
-            )
+            event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
         except stripe.error.SignatureVerificationError:
             return Response(
                 {"detail": "Invalid Stripe signature"},
