@@ -52,12 +52,13 @@ class StripeWebhook(APIView):
     def post(self, request, *args, **kwargs):
         payload = request.body
         sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
+        endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
         event = None
         payment = None
 
         try:
             event = stripe.Webhook.construct_event(
-                payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
+                payload, sig_header, endpoint_secret
             )
         except stripe.error.SignatureVerificationError:
             return Response(
