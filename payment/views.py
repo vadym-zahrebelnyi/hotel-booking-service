@@ -64,9 +64,7 @@ class StripeWebhook(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        if event["type"] != "checkout.session.completed":
-            return Response(status=status.HTTP_200_OK)
-        elif event["type"] == "checkout.session.completed":
+        if event["type"] == "checkout.session.completed":
             session = event["data"]["object"]
             session_id = session["id"]
 
